@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+
+<html>
+<head> 
+
+<script src = "http://d3js.org/d3.v3.min.js"></script>
+</head>
+
+<body>
+
+<input type="file" id="file-input" /><br>
+<input type="file" id="coor-input"/><br>
+
+<input id="clickMe" type="button" value="clickme" onclick="doFunction();" /><br><br>
+
+<script>
+
+var chromosomeBasePairsSize = [247199719,242751149,199446827,191263063,180837866,170896993,158821424,146274826,140442298,131624737,131130853,132289534,114127980,106360585,100114055,88822254,78654742,76117153,63806651,62436224,46944323,49528953,154913754,57741652 ];
+
+
+	var mutations; 
+	var coordinates;
+
+	var height = 800;
+	var width = 1400;
+
+	var margin = 10;
+
+	var divisions = height / 24;
+
+	var color = 0;
+
+
+
+	var canvas = d3.select("body").append("svg")
+			                           .attr("width", width)
+			                           .attr("height", height);
+
+			canvas.append("rect")
+			    .attr("width", "100%")
+			    .attr("height", "100%")
+			    .attr("fill", "white")
+			    ;
+
+	d3.select("body").append("br");
+
+	var detailCanvas= d3.select("body").append("svg")
+			                           .attr("width", 50)
+			                           .attr("height", 50);
+
+							detailCanvas.append("rect")
+							    .attr("width", "100%")
+							    .attr("height", "100%")
+							    .attr("fill", "blue")
+							    .style("opacity", 0)
+							    ;
+
+	for(var i = 0; i< 24; i++){
+			var line = canvas.append("line")
+			 				.attr("x1", 0)
+			 				.attr("y1", i* divisions + (divisions/2))
+			 				.attr("x2", width)
+			 				.attr("y2", i* divisions + (divisions/2))
+			 				.attr("stroke", "green")
+			 				.attr("stroke-width", 1);
+	 }
+	
+	
+	function readMutsFile(e){
+		var file = e.target.files[0];
+
+		if(!file){
+			return;
+		}
+
+
+		var reader = new FileReader();
+		reader.onload = function(e){
+			
+			mutations= e.target.result;
+		};
+
+		reader.readAsText(file);
+	}
+
+	function readCoorFile(e){
+		var file = e.target.files[0];
+
+		if(!file){
+			return;
+		}
+
+
+		var reader = new FileReader();
+		reader.onload = function(e){
+			
+			coordinates= e.target.result;
+		};
+
+		reader.readAsText(file);
+	}
+
+
+
+
+
+	document.getElementById("clickMe").onclick = function () { 
+		//Comprobamos si los dos ficheros están bien
+
+		if(mutations && coordinates){
+			//los dos están bien
+
+			 //Pinto las citobandas
+
+			 var lines =  coordinates.match(/[^\r\n]+/g);
+
+
+			 var chcont = 1;
+
+			 var centromeres = [];
+
+			 for(var l = 0; l< lines.length; l++){
+			 	var line = lines[l];
+			 	var array = line.split("\t"); //Divido por espacio
+
+			 	
+			 	//chr  brazo  nombre  inicio  fin
+			 	var next = lines[l+1];
+
+			 	if(line[0] == chcont &&  next[0] == chcont && line[1] != next[1]){
+			 		//line[fin] Indica el centrómero
+			 		var temp = {chr: chcont, pos: line[4]};
+			 		//console.log(temp);
+			 		console.log(line);
+			 		centromeres.push(temp);
+			 		chcont++;
+			 	}
+
+			 	var xinit = array[3] * width /chromosomeBasePairsSize[array[0] -1];
+			 	var xend = array[4] * width  /chromosomeBasePairsSize[array[0] -1];
+
+			 	var y = array[0]* divisions - (divisions/2) - 10;
+
+			 	var g = canvas.append("g")
+			 	.attr("transform", function(){
+			 		return "translate("+xinit+"," + y +")";
+			 	});
+
+			 	var rect = g.append("rect")
+			 			.attr("width", (xend - xinit) +0)
+			 			.attr("height" , 20)
+			 			.attr("id", array[0] + "-" + array[1] + "-" + array[2])
+			 			.style("opacity", 0.3)
+			 			.on("click", function(){
+			    			
+			 				var id = d3.select(this).attr('id');
+			 				var name = id.split("-");
+
+			 				var muts =  mutations.match(/[^\r\n]+/g);
+
+			 				var start;
+			 				var end;
+
+			 				//Saco el start y el end de esta citobanda
+			 				 for(var t = 0; t< lines.length; t++){
+			 						var line = lines[t];
+			 						var array = line.split("\t"); //Divido por espacio
+
+			 						if((array[0] == name [0]) && array[1] == name[1] && array[2]== name[2]){
+			 							start = array[3];
+			 							end = array[4];
+			 							console.log("start: "+start);
+			 							console.log("end: "+ end);
+			 						}
+			 				 }
+
+
+			 				var mutsCyt = muts.map(function(d){
+			 					
+			 					var array = d.split("\t"); //Divido por tabulador
+
+			 					if(d[0] == name[0]){
+			 						if(d[1] > start && d[1] < end){
+			 							//Este d sí es de la citobanda
+			 							return d;
+			 						}
+			 					}
+
+			 				});
+			    		});
+
+			    if(color == 0){
+
+			    	rect.attr("fill", "green");
+			    	color = 1;
+			    }else{
+
+			    	rect.attr("fill","purple")
+			    	color = 0;
+			    }
+
+			   	g.append("text")
+				    .attr("x", function(d) { return (xend -xinit) /5 ;})
+				    .attr("y", 2)
+				    .attr("font-size", "10px")
+				    .attr("font-family", "sans-serif")
+				    .attr("fill", "black")
+				    .text(function(d) { 
+				    	var ch ;
+				    	if(array[0] == 23)
+				    		ch = "X";
+				    	else if(array[0] == 24)
+				    		ch = "Y";
+				    	else{
+				    		ch = array[0];
+				    	}
+
+				    	return ch + array[1] + array[2]; 
+				    });
+			 }
+
+
+			 //Pinto los centrómeros, en centromeres {chr, pos}
+			 for(var o = 0; o< centromeres.length; o++){
+			 	var cen = centromeres[o];
+			 	var x = cen.pos * width /chromosomeBasePairsSize[cen.chr -1];
+
+			 	var circle = canvas.append("circle")
+			 				.attr("cx", x)
+			 				.attr("cy", cen.chr* divisions + (divisions/2))
+			 				.attr("r", 10)
+			 				.attr("fill", "red");
+			 }
+
+
+			 //Pinto los nombres de los cromosomas
+
+			 for(var c = 1; c<= 24; c++){
+			 	var g = canvas.append("g")
+			 	.attr("transform", function(){
+			 		return "translate(0," +(c* divisions - (divisions/2)) +")";
+			 	});
+
+			 	g.append("text")
+				    .attr("x", "0")
+				    .attr("y", "3")
+				    .attr("font-size", "15px")
+				    .attr("font-family", "sans-serif")
+				    .attr("fill", "black")
+				    .text(function(d) { 
+				    	var ch ;
+				    	if(c == 23)
+				    		ch = "X";
+				    	else if(c == 24)
+				    		ch = "Y";
+				    	else{
+				    		ch = c;
+				    	}
+
+				    	return ch; 
+				    });
+			 }
+
+
+			 //Pintamos las mutaciones
+			 var muts =  mutations.match(/[^\r\n]+/g);
+
+
+ 			for(var l = 0; l< muts.length; l++){
+			 	var line = muts[l];
+			 	var array = line.split("\t"); //Divido por tabulador
+
+			 	//console.log(array);
+
+			 	var x = width * array[1] / chromosomeBasePairsSize[array[0] -1];
+
+			 	var line = canvas.append("line")
+			 				.attr("x1", x)
+			 				.attr("y1", array[0]* divisions - (divisions/2) -5)
+			 				.attr("x2", x)
+			 				.attr("y2", array[0]* divisions - (divisions/2) +5)
+			 				.attr("stroke", "black")
+			 				.attr("stroke-width", 0.5);
+			 }
+			
+		}else{
+			 alert("Error");
+		}
+	};
+
+
+	document.getElementById("file-input").addEventListener("change", readMutsFile, false);
+	document.getElementById("coor-input").addEventListener("change", readCoorFile, false);
+
+
+	function hideDetails(){
+		detailCanvas.style("opacity", 0);
+	}
+
+	function showdetails(){
+		detailCanvas.style("opacity", 100);
+	}
+</script>
+
+</body>
+
+</html>
